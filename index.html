@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>GoViKs Emergency App</title>
+    <!-- Нативный скрипт Telegram WebApp API -->
+    <script src="https://telegram.org"></script>
+    <!-- Бесплатные стили Leaflet карт -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <script src="https://unpkg.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--tg-theme-bg-color, #17212b);
+            color: var(--tg-theme-text-color, #f5f5f5);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        #ui-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 5%;
+            width: 90%;
+            z-index: 10;
+            background: var(--tg-theme-secondary-bg-color, #202b36);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-sizing: border-box;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .app-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .app-status {
+            font-size: 12px;
+            color: #8e9bb0;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="ui-overlay">
+        <div class="app-title">🤖 GoViKs Радар Взаимопомощи</div>
+        <div class="app-status">Статус: Поиск вашей геопозиции в РБ...</div>
+    </div>
+
+    <script>
+        // Инициализируем Telegram WebApp
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand(); // Раскрываем приложение на весь экран
+
+        // Применяем цвета из темы Telegram юзера
+        document.body.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color);
+        document.body.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color);
+
+        // Инициализируем карту (дефолт в Минске)
+        const map = L.map('map', { zoomControl: false }).setView([53.9006, 27.5590], 7);
+
+        // Подгружаем бесплатные дороги OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Авто-запрос GPS смартфона
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+
+                // Смещаем карту к юзеру
+                map.setView([lat, lon], 14);
+
+                // Ставим маркер
+                L.marker([lat, lon]).addTo(map)
+                    .bindPopup('<b>Вы здесь</b><br>Локация определена в РБ.').openPopup();
+
+                document.querySelector('.app-status').innerText = `📍 Координаты зафиксированы: ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                
+                // Включаем нативную нижнюю кнопку Telegram
+                tg.MainButton.setText("ПОДТВЕРДИТЬ ЛОКАЦИЮ SOS");
+                tg.MainButton.show();
+                
+                // При клике на кнопку ТГ — отправляем JSON-пакет обратно в бот и закрываем Mini App
+                tg.onEvent('mainButtonClicked', function() {
+                    tg.sendData(JSON.stringify({latitude: lat, longitude: lon}));
+                    tg.close();
+                });
+
+            }, function(error) {
+                document.querySelector('.app-status').innerText = "❌ Ошибка GPS: Включите геопозицию в телефоне";
+            });
+        } else {
+            document.querySelector('.app-status').innerText = "❌ Устройство не поддерживает геолокацию";
+        }
+    </script>
+</body>
+</html>
